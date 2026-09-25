@@ -29,9 +29,9 @@ jobs:
     name: Vérification syntaxe (node --check)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
 
@@ -54,14 +54,24 @@ jobs:
     # `deploy` ci-dessous pour qu'il devienne bloquant.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
 
-      - name: Installer Playwright (Chromium)
-        run: npx --yes playwright install --with-deps chromium
+      # `npx playwright install` seul ne suffit pas : ça télécharge le
+      # binaire Chromium, mais ne rend pas le paquet `playwright`
+      # importable par smoke-test.mjs (qui fait `import { chromium }
+      # from "playwright"`). Il faut donc l'installer dans un
+      # node_modules local d'abord — d'où le `npm init -y` (pas de
+      # package.json commité pour un projet qui n'en a autrement pas
+      # besoin).
+      - name: Installer Playwright (paquet + navigateur Chromium)
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install --with-deps chromium
 
       - name: Servir le site en local
         run: npx --yes serve -l 8080 . &
@@ -81,9 +91,15 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+      # `enablement: true` (au lieu de compter sur la valeur par défaut
+      # de l'action) : sans ça, sur un dépôt où Pages n'a jamais été
+      # activé, configure-pages échoue avec "Get Pages site failed...
+      # Not Found" au lieu de créer le site Pages automatiquement.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
