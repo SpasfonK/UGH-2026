@@ -32,10 +32,25 @@ pull request :
    quel sur GitHub Pages (aucune étape de build : c'est déjà du HTML/JS
    servi tel quel).
 
-**Réglage unique à faire dans GitHub** avant que `deploy` fonctionne :
+**Corrigé après le premier run réel sur GitHub** (les trois lignes
+ci-dessous sont les bugs réellement rencontrés, pas des précautions
+théoriques) :
+- `configure-pages` échouait avec `HttpError: Not Found` sur un dépôt où
+  Pages n'avait jamais été activé → `enablement: true` explicite dans le
+  `with:` de cette étape, pour qu'elle crée le site Pages elle-même au
+  lieu de simplement échouer.
+- Le smoke test échouait (`exit code 1`) : `npx playwright install`
+  télécharge le navigateur mais ne rend pas le paquet `playwright`
+  importable par le script → ajout d'un `npm init -y && npm install
+  playwright` avant l'installation du navigateur.
+- `actions/checkout@v4` et `actions/setup-node@v4` déclenchaient un
+  avertissement de dépréciation Node 20 → bump vers `@v5` (compatibles
+  Node 24).
+
+**Si `configure-pages` échoue quand même malgré `enablement: true`**
+(certains réglages d'organisation bloquent la création automatique) :
 Settings → Pages → "Build and deployment" → Source = **GitHub Actions**
-(pas "Deploy from a branch"). Le workflow ne peut pas changer ce
-réglage lui-même.
+à la main, une seule fois.
 
 Si tu gardes le dossier `ugh-remake/` imbriqué dans un repo plus large
 au lieu de le mettre à la racine du repo, adapte le `path: "."` de
