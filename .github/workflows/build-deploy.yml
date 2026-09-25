@@ -1,0 +1,93 @@
+name: Build & Deploy
+
+# Ce projet n'a pas d'étape de build au sens compilation : c'est du HTML/
+# ES modules servis tels quels, Three.js chargé via CDN + import map.
+# "Builder cette itération" ici veut donc dire : vérifier que rien n'est
+# cassé (syntaxe + un vrai chargement en navigateur headless, ce qui n'a
+# jamais pu être testé dans l'environnement de développement où ce code
+# a été écrit — voir CRITIC-v10.md), puis publier le résultat sur GitHub
+# Pages.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Évite deux déploiements Pages concurrents.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Vérification syntaxe (node --check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Vérifier la syntaxe de chaque module ES
+        run: |
+          set -e
+          for f in src/*.js; do
+            echo "== $f =="
+            node --check "$f"
+          done
+
+  smoke-test:
+    name: Smoke test navigateur headless (informatif)
+    runs-on: ubuntu-latest
+    needs: validate
+    # Ce job ne bloque pas le déploiement : la config WebGL en Chromium
+    # headless peut être capricieuse selon la version du runner. Une fois
+    # que tu l'auras vu passer plusieurs fois de suite sans faux négatif,
+    # ajoute `smoke-test` à côté de `validate` dans le `needs:` du job
+    # `deploy` ci-dessous pour qu'il devienne bloquant.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer Playwright (Chromium)
+        run: npx --yes playwright install --with-deps chromium
+
+      - name: Servir le site en local
+        run: npx --yes serve -l 8080 . &
+
+      - name: Attendre que le serveur réponde
+        run: npx --yes wait-on http://localhost:8080
+
+      - name: Charger la page et vérifier l'absence d'erreur JS/console
+        run: node .github/scripts/smoke-test.mjs
+
+  deploy:
+    name: Déploiement GitHub Pages
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
