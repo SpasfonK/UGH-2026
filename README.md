@@ -14,6 +14,33 @@ demander une V11** — voir `CRITIC-v10.md` pour ce qu'il faut vérifier
 en priorité (le bloom doit toucher l'eau/les rais de lumière, pas toute
 la scène ; aucune erreur dans la console).
 
+## CI/CD GitHub Actions
+`.github/workflows/build-deploy.yml` fait tourner, sur chaque push et
+pull request :
+1. **validate** — `node --check` sur chaque module de `src/`.
+2. **smoke-test** (informatif, ne bloque pas encore le déploiement) —
+   ouvre réellement la page dans Chromium headless via Playwright et
+   échoue si une erreur console/JS apparaît ou si le canvas WebGL n'est
+   jamais créé. C'est le premier test de ce projet qui vérifie un rendu
+   réel plutôt qu'une relecture de code (voir l'alerte de
+   `CRITIC-v10.md`) — mais la config WebGL en headless CI pouvant être
+   capricieuse selon le runner, il reste `continue-on-error: true`
+   jusqu'à ce que tu l'aies vu passer plusieurs fois de suite sans faux
+   négatif. Une fois confiant, ajoute `smoke-test` au `needs:` du job
+   `deploy` pour le rendre bloquant.
+3. **deploy** (uniquement sur push vers `main`) — publie le dossier tel
+   quel sur GitHub Pages (aucune étape de build : c'est déjà du HTML/JS
+   servi tel quel).
+
+**Réglage unique à faire dans GitHub** avant que `deploy` fonctionne :
+Settings → Pages → "Build and deployment" → Source = **GitHub Actions**
+(pas "Deploy from a branch"). Le workflow ne peut pas changer ce
+réglage lui-même.
+
+Si tu gardes le dossier `ugh-remake/` imbriqué dans un repo plus large
+au lieu de le mettre à la racine du repo, adapte le `path: "."` de
+l'étape `upload-pages-artifact` en `path: "ugh-remake"`.
+
 ## Lancer le jeu
 ```
 npx serve .
